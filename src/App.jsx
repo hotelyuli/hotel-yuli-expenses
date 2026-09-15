@@ -5,11 +5,11 @@ import * as XLSX from "xlsx";
 // Grouped expense categories matching Hotel Yuli chart of accounts
 const CATEGORY_GROUPS = [
   {
-    group: "Employee Costs",
-    items: ["Planilla", "CCSS"],
+    group: "Payroll and Employee Costs",
+    items: ["Planilla", "CCSS", "Henrry"],
   },
   {
-    group: "Fixed Operating Expenses",
+    group: "Utilities",
     items: [
       "Accountant",
       "Pool Maintenance",
@@ -34,20 +34,21 @@ const CATEGORY_GROUPS = [
     group: "Variable Operating — Supplies",
     items: [
       "HR Suplidora",
+      "Breakfast to go",
       "Walmart / Varianza Pequeño",
     ],
   },
   {
     group: "Variable Operating — Maintenance",
     items: [
-      "External Maintenance",
+      "Professional Services",
       "AC Maintenance",
       "NOVEX",
       "Ferretería Palmares",
       "Ferretería EPA S.A.",
       "El Colono",
       "Ferretería Iguana Verde",
-      "General Maintenance",
+      "Maintenance and Repairs",
     ],
   },
   {
@@ -60,11 +61,12 @@ const CATEGORY_GROUPS = [
     ],
   },
   {
-    group: "Commissions & Bookings",
+    group: "OTA and Payment Commissions",
     items: [
-      "Comisión",
       "Booking",
       "Unique",
+      "Comision del Datafono",
+      "Comision por Transaccion",
     ],
   },
 ];
@@ -579,6 +581,7 @@ Reglas de categoría:
 - Google/Meta/Facebook Ads → "Google Ads"
 - CCSS/Caja Costarricense → "CCSS"
 - Planilla/nómina/salario → "Planilla"
+- Henrry/jardinero/empleado → "Henrry"
 - Aire acondicionado/AC repair → "AC Maintenance"
 - Piscina/pool/cloro/químicos piscina → "Pool Maintenance"
 - Strauss/dispensador agua → "Strauss Water"
@@ -586,9 +589,15 @@ Reglas de categoría:
 - Municipalidad/patente/permiso → "OSA"
 - Hacienda/renta/impuesto → "Hacienda - Renta"
 - Limpieza/cleaning service → "Limpieza - Servicios Profesionales"
-- Booking.com/comisión reserva → "Booking"
+- Booking.com/comisión OTA → "Booking"
+- Unique Experiences → "Unique"
+- Datafono/tarjeta/POS fee → "Comision del Datafono"
+- Fee por transacción → "Comision por Transaccion"
+- Desayuno/breakfast supplies → "Breakfast to go"
+- Consultoría/servicios profesionales → "Professional Services"
+- Mantenimiento general → "Maintenance and Repairs"
 - Si hay transferencia SINPE a persona (salario), usa "Planilla"
-- Si no reconoces al proveedor, usa "General Maintenance" o "External Maintenance"
+- Si no reconoces al proveedor, usa "Maintenance and Repairs"
 
 Si un campo no se puede determinar, usa null. Si la imagen está borrosa o ilegible, intenta extraer lo que puedas y usa confidence "low".` },
         ],
@@ -1914,7 +1923,31 @@ function MonthlyReport({ data, db, showToast }) {
     .sort((a, b) => b.totalUSD - a.totalUSD);
   const maxCatUSD = categoryList[0]?.totalUSD || 1;
 
-  const exportCSV = () => {
+  const exportExcel = async () => {
+    try {
+      showToast("Generating Excel...");
+      const res = await fetch("/api/export-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: selectedMonth.slice(0, 4), rate }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(`Excel export failed: ${err.error}`, "error");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `HotelYuli_Expenses_${selectedMonth.slice(0, 4)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("Excel downloaded ✓");
+    } catch (err) {
+      showToast(`Export failed: ${err.message}`, "error");
+    }
+  };
     const headers = ["Date","Amount","Currency","Amount USD","Category","Vendor","Payment Method","Bank Account","Submitted By","Status","Invoice Attached","AI Scanned","Notes"];
     const rows = approved.map((e) => {
       const amtUSD = e.currency === "USD" ? e.amount : (e.amount / rate);
@@ -2036,6 +2069,11 @@ function MonthlyReport({ data, db, showToast }) {
         {approved.length > 0 && (
           <button onClick={exportCSV} style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none", background: B.darkWine, color: B.white, fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
             <Icons.Download /> Export CSV
+          </button>
+        )}
+        {approved.length > 0 && (
+          <button onClick={exportExcel} style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none", background: B.greenDark, color: B.white, fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+            <Icons.Download /> Export Excel
           </button>
         )}
       </div>
